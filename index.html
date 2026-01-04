@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>T1 Pro DataBase | 影音資料庫</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
+    <style>
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #0f172a; color: #f1f5f9; }
+        .hero-section { 
+            background: linear-gradient(rgba(15, 23, 42, 0.7), rgba(15, 23, 42, 1)), 
+            url('https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070') center/cover; 
+        }
+        .active-tag { background-color: #3b82f6 !important; color: white !important; }
+        .video-card { transition: all 0.3s ease; border: 1px solid #1e293b; background: rgba(30, 41, 59, 0.5); }
+        .video-card:hover { transform: translateY(-5px); border-color: #3b82f6; box-shadow: 0 10px 20px -10px rgba(59, 130, 246, 0.5); }
+        .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    </style>
+</head>
+<body class="min-h-screen">
+
+    <nav class="bg-slate-900/80 backdrop-blur-md sticky top-0 z-50 border-b border-slate-800 p-4">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <h1 class="text-2xl font-bold text-blue-500 cursor-pointer" onclick="showPage('home')">T1 Database</h1>
+            <div class="flex space-x-6 font-medium text-sm md:text-base">
+                <button onclick="showPage('home')" class="hover:text-blue-400 transition">首頁</button>
+                <button onclick="showPage('fav')" class="hover:text-pink-400 transition">我的收藏 ❤️</button>
+            </div>
+        </div>
+    </nav>
+
+    <section id="hero-area" class="hero-section h-[380px] flex items-center justify-center text-center p-6 mb-8">
+        <div id="hero-content" class="max-w-3xl">
+            <div class="bg-blue-600/20 text-blue-400 border border-blue-500/50 px-3 py-1 rounded-full text-xs font-bold mb-4 inline-block tracking-widest">RANDOM PICK</div>
+            <h2 id="hero-title" class="text-3xl md:text-5xl font-bold mb-4 text-white">正在載入精彩內容...</h2>
+            <p id="hero-series" class="text-slate-400 mb-6 font-mono"></p>
+            <button id="hero-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-bold transition shadow-lg">觀看影片</button>
+        </div>
+    </section>
+
+    <main class="max-w-7xl mx-auto px-4 pb-20">
+        <div class="mb-10 space-y-6">
+            <div class="relative">
+                <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-500 text-xl">🔍</span>
+                <input type="text" id="searchInput" placeholder="搜尋標題、備註或系列 (例如: 吃東西)..." 
+                    class="w-full p-4 pl-12 rounded-xl bg-slate-800 border border-slate-700 focus:ring-2 focus:ring-blue-500 outline-none transition text-white">
+            </div>
+            
+            <div id="tagList" class="flex flex-wrap gap-2 items-center">
+                <span class="text-sm text-slate-500 mr-2 font-bold uppercase">Filter:</span>
+                <button onclick="filterByTag('all')" class="bg-slate-800 px-4 py-1.5 rounded-full hover:bg-slate-700 text-sm active-tag transition" id="tag-all">全部</button>
+            </div>
+        </div>
+
+        <div id="videoGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div class="col-span-full text-center py-20 text-slate-500 animate-pulse text-lg">
+                🚀 正在從 Google Sheets 搬運資料，請稍候...
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-slate-950 border-t border-slate-800 py-12">
+        <div class="max-w-7xl mx-auto px-4 text-center text-slate-500 text-sm">
+            <p class="mb-4 text-slate-400 font-bold tracking-widest uppercase">© 2026 T1 Fans Project</p>
+            <div class="max-w-2xl mx-auto space-y-2 opacity-60 italic">
+                <p>本站內容僅供個人交流使用，不具任何營利目的。</p>
+                <p>影片與圖片版權均歸原創作者、選手及 T1 戰隊所有。若有侵權請連繫移除。</p>
+            </div>
+        </div>
+    </footer>
+
+    <div id="modal" class="fixed inset-0 bg-slate-950/95 z-[60] hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-slate-900 w-full max-w-4xl rounded-2xl border border-slate-700 shadow-2xl overflow-hidden relative">
+            <button onclick="closeModal()" class="absolute top-4 right-4 z-10 w-10 h-10 bg-black/50 rounded-full text-white text-2xl hover:bg-red-500 transition shadow-lg">&times;</button>
+            <div id="modalContent" class="p-0"></div>
+        </div>
+    </div>
+
+   <script>
+        // 1. 設定你的 CSV 連結
+        const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRF7k8f6-PjUtj2u3YXT-yrdoDqF8ROoDl83h6b48okdhSs7M0RCWgQeaAhVXxlBZv3DqkgPgZMr9mC/pub?output=csv';
+        
+        let allVideos = [];
+        let currentFilter = 'all';
+        let currentPage = 'home';
+
+        // 2. 抓取資料 (座標抓取版)
+        async function fetchData() {
+            Papa.parse(CSV_URL, {
+                download: true,
+                header: false,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    const rows = results.data.slice(1);
+                    allVideos = rows.map((row, index) => {
+                        if (!row[2] || row[2] === "") return null;
+                        return {
+                            id: row[0] || `v-${index}`,
+                            title: row[1] || "未命名影片",
+                            url: row[2].trim(),
+                            tags: row[3] ? row[3].split(',').map(t => t.trim()).filter(t => t !== "") : [],
+                            date: row[4] || "",
+                            note: row[5] || "",
+                            thumb: row[6] || "",
+                            series: row[7] || ""
+                        };
+                    }).filter(v => v !== null);
+
+                    if (allVideos.length > 0) {
+                        renderTags();
+                        renderVideos();
+                        setupHero();
+                    }
+                }
+            });
+        }
+
+        // 3. 隨機看板
+        function setupHero() {
+            if (allVideos.length > 0) {
+                const random = allVideos[Math.floor(Math.random() * allVideos.length)];
+                document.getElementById('hero-title').innerText = random.title;
+                document.getElementById('hero-series').innerText = random.series ? `# ${random.series}` : "";
+                document.getElementById('hero-btn').onclick = () => openModal(random.id);
+            }
+        }
+
+        // 4. 渲染標籤
+        function renderTags() {
+            const tagContainer = document.getElementById('tagList');
+            const uniqueTags = [...new Set(allVideos.flatMap(v => v.tags))];
+            uniqueTags.forEach(tag => {
+                const btn = document.createElement('button');
+                btn.className = "bg-slate-800 px-4 py-1.5 rounded-full hover:bg-slate-700 text-sm transition text-slate-300";
+                btn.innerText = tag;
+                btn.id = `tag-${tag}`;
+                btn.onclick = () => filterByTag(tag);
+                tagContainer.appendChild(btn);
+            });
+        }
+
+        // 5. 渲染影片
+        function renderVideos() {
+            const grid = document.getElementById('videoGrid');
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const favorites = JSON.parse(localStorage.getItem('lol_favs') || "[]");
+            grid.innerHTML = "";
+
+            let filtered = allVideos.filter(v => {
+                const matchesSearch = v.title.toLowerCase().includes(searchTerm) || 
+                                     v.note.toLowerCase().includes(searchTerm) || 
+                                     v.series.toLowerCase().includes(searchTerm);
+                const matchesTag = currentFilter === 'all' || v.tags.includes(currentFilter);
+                const isFavPage = currentPage === 'fav' ? favorites.includes(v.id) : true;
+                return matchesSearch && matchesTag && isFavPage;
+            });
+
+            filtered.forEach(v => {
+                const isFav = favorites.includes(v.id);
+                const card = document.createElement('div');
+                card.className = "video-card rounded-xl overflow-hidden cursor-pointer flex flex-col";
+                const thumb = v.thumb || `https://img.youtube.com/vi/${getYTId(v.url)}/mqdefault.jpg`;
+                
+                card.innerHTML = `
+                    <div class="relative aspect-video overflow-hidden" onclick="openModal('${v.id}')">
+                        <img src="${thumb}" class="w-full h-full object-cover">
+                        <div class="absolute bottom-2 right-2 bg-black/70 backdrop-blur-md px-2 py-1 rounded text-[10px] font-mono text-white">${v.date || 'UNSET'}</div>
+                    </div>
+                    <div class="p-5 flex-grow flex flex-col justify-between">
+                        <div>
+                            <p class="text-[10px] text-red-400 font-bold uppercase tracking-wider mb-1">${v.series || 'Collection'}</p>
+                            <h3 class="font-bold text-lg line-clamp-2 mb-3 text-white h-14">${v.title}</h3>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <div class="flex gap-1 overflow-hidden">
+                                ${v.tags.slice(0,2).map(t => `<span class="text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded">${t}</span>`).join('')}
+                            </div>
+                            <button onclick="toggleFav('${v.id}', event)" class="w-10 h-10 flex items-center justify-center rounded-full bg-slate-700/50 hover:bg-pink-500/20 transition ${isFav ? 'text-pink-500' : 'text-slate-400'}">
+                                ${isFav ? '❤️' : '♡'}
+                            </button>
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function getYTId(url) {
+            const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+            const match = url.match(regExp);
+            return (match && match[2].length === 11) ? match[2] : 'dQw4w9WgXcQ';
+        }
+
+        function openModal(id) {
+            const v = allVideos.find(video => video.id === id);
+            const modal = document.getElementById('modal');
+            const content = document.getElementById('modalContent');
+            const isYouTube = v.url.includes('youtube.com') || v.url.includes('youtu.be');
+            
+            let mediaHTML = '';
+            if (isYouTube) {
+                const ytId = getYTId(v.url);
+                mediaHTML = `<div class="aspect-video w-full"><iframe class="w-full h-full" src="https://www.youtube.com/embed/${ytId}?autoplay=1" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe></div>`;
+            } else {
+                const displayThumb = v.thumb || 'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070';
+                mediaHTML = `
+                    <div class="relative aspect-video w-full overflow-hidden flex items-center justify-center bg-slate-800">
+                        <img src="${displayThumb}" class="absolute inset-0 w-full h-full object-cover opacity-30 blur-sm">
+                        <div class="relative z-10 text-center p-6">
+                            <p class="text-white mb-4 font-bold text-lg">此影片位於外部平台</p>
+                            <a href="${v.url}" target="_blank" class="inline-block bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-full font-bold transition transform hover:scale-105 shadow-xl">立即前往觀看 ↗</a>
+                        </div>
+                    </div>`;
+            }
+
+            content.innerHTML = `
+                ${mediaHTML}
+                <div class="p-6 md:p-8 max-h-[40vh] overflow-y-auto bg-slate-900">
+                    <p class="text-red-400 text-xs font-bold mb-1 uppercase tracking-widest">${v.series || 'SERIES'}</p>
+                    <h2 class="text-2xl font-bold mb-4 text-white">${v.title}</h2>
+                    <div class="flex flex-wrap gap-4 text-xs text-slate-500 mb-6 font-mono border-b border-slate-800 pb-4">
+                        <span>📅 DATE: ${v.date || 'UNKNOWN'}</span>
+                        <span>🏷️ TAGS: ${v.tags.join(', ')}</span>
+                    </div>
+                    <div class="prose prose-invert max-w-none text-slate-300 leading-relaxed bg-slate-800/30 p-5 rounded-xl border border-slate-700/50">
+                        ${marked.parse(v.note || "尚無詳細備註。")}
+                    </div>
+                </div>
+            `;
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        // 這是關閉視窗的函數
+        function closeModal() {
+            const modal = document.getElementById('modal');
+            const content = document.getElementById('modalContent');
+            modal.classList.add('hidden');
+            content.innerHTML = "";
+            document.body.style.overflow = 'auto';
+        }
+
+        // 加入點擊背景關閉的功能
+        document.getElementById('modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+
+        document.getElementById('searchInput').addEventListener('input', renderVideos);
+        function filterByTag(tag) {
+            currentFilter = tag;
+            document.querySelectorAll('#tagList button').forEach(b => b.classList.remove('active-tag'));
+            document.getElementById(`tag-${tag}`).classList.add('active-tag');
+            renderVideos();
+        }
+        function showPage(page) {
+            currentPage = page;
+            document.getElementById('hero-area').style.display = (page === 'home') ? 'flex' : 'none';
+            renderVideos();
+            window.scrollTo(0,0);
+        }
+        function toggleFav(id, e) {
+            e.stopPropagation();
+            let favs = JSON.parse(localStorage.getItem('lol_favs') || "[]");
+            if (favs.includes(id)) { favs = favs.filter(i => i !== id); } 
+            else { favs.push(id); }
+            localStorage.setItem('lol_favs', JSON.stringify(favs));
+            renderVideos();
+        }
+
+        fetchData();
+    </script>
+</body>
+</html>
