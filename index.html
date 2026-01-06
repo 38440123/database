@@ -102,10 +102,11 @@ body { background-color: var(--bg-color); color: var(--text-color); }
 
    <nav style="background-color: var(--bg-card); border-color: var(--border-color);" class="backdrop-blur-md sticky top-0 z-50 border-b p-4">
         <div class="max-w-7xl mx-auto flex justify-between items-center">
-            <h1 class="text-2xl font-bold text-blue-500 cursor-pointer" onclick="showPage('home')">T1 Database</h1>
+            <h1 class="text-2xl font-bold text-blue-500 cursor-pointer" onclick="showPage('home')">這裡是標題</h1>
             <div class="flex space-x-6 font-medium text-sm md:text-base">
                 <button onclick="showPage('home')" class="hover:text-blue-400 transition">首頁</button>
                 <button onclick="showPage('fav')" class="hover:text-pink-400 transition">我的收藏 ❤️</button>
+                <button onclick="showPage('schedule')" class="hover:text-green-400 transition">最新賽程 📅</button>
                 <button id="theme-toggle" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
     <span id="theme-icon">🌙</span>
 </button>
@@ -118,7 +119,13 @@ body { background-color: var(--bg-color); color: var(--text-color); }
             <div class="bg-blue-600/20 text-blue-400 border border-blue-500/50 px-3 py-1 rounded-full text-xs font-bold mb-4 inline-block tracking-widest">隨機推薦</div>
             <h2 id="hero-title" class="text-3xl md:text-5xl font-bold mb-4 text-white">正在載入精彩內容...</h2>
             <p id="hero-series" class="text-slate-400 mb-6 font-mono"></p>
-            <button id="hero-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-bold transition shadow-lg">觀看影片</button>
+            <div class="flex flex-wrap justify-center gap-4">
+    <button id="hero-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-bold transition shadow-lg">觀看影片</button>
+    
+    <button onclick="setupHero()" class="bg-slate-700/50 hover:bg-slate-600 text-white px-5 py-3 rounded-lg font-bold transition backdrop-blur-md border border-slate-500/30 shadow-lg flex items-center gap-2">
+        <span>🎲</span> 隨機重抽
+    </button>
+</div>
         </div>
     </section>
 
@@ -136,6 +143,15 @@ body { background-color: var(--bg-color); color: var(--text-color); }
             </div>
         </div>
 
+        <div id="scheduleSection" class="hidden space-y-6">
+    <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold flex items-center"><span class="mr-2">🏆</span> 2026 LCK CUP 賽程</h2>
+        <span class="text-xs text-slate-500 font-mono">Auto-sync with Google Sheets</span>
+    </div>
+    <div id="scheduleList" class="grid gap-4">
+        <div class="text-center py-20 text-slate-500 animate-pulse">📅 賽程載入中...</div>
+    </div>
+</div>
         <div id="videoGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             <div class="col-span-full text-center py-20 text-slate-500 animate-pulse text-lg">
                 🚀 正在搬運資料，請稍候...
@@ -204,9 +220,24 @@ body { background-color: var(--bg-color); color: var(--text-color); }
         function setupHero() {
             if (allVideos.length > 0) {
                 const random = allVideos[Math.floor(Math.random() * allVideos.length)];
+                
+                // 更新文字內容
                 document.getElementById('hero-title').innerText = random.title;
                 document.getElementById('hero-series').innerText = random.series ? `# ${random.series}` : "";
                 document.getElementById('hero-btn').onclick = () => openModal(random.id);
+                
+                // 更新背景圖片 (如果有 thumb 欄位的話)
+                if (random.thumb) {
+                    const heroSection = document.getElementById('hero-area');
+                    const isLight = document.body.classList.contains('light-mode');
+                    
+                    // 根據模式設定遮罩透明度，確保文字清晰
+                    const mask = isLight 
+                        ? 'linear-gradient(rgba(241, 245, 249, 0.8), rgba(241, 245, 249, 0.95))'
+                        : 'linear-gradient(rgba(15, 23, 42, 0.7), rgba(15, 23, 42, 1))';
+                    
+                    heroSection.style.background = `${mask}, url('${random.thumb}') center/cover`;
+                }
             }
         }
 
@@ -365,9 +396,25 @@ body { background-color: var(--bg-color); color: var(--text-color); }
         }
         function showPage(page) {
             currentPage = page;
-            document.getElementById('hero-area').style.display = (page === 'home') ? 'flex' : 'none';
-            renderVideos();
-            window.scrollTo(0,0);
+            const hero = document.getElementById('hero-area');
+            const videoGrid = document.getElementById('videoGrid');
+            const scheduleSection = document.getElementById('scheduleSection');
+            const searchArea = document.querySelector('.mb-10.space-y-6'); // 搜尋框與標籤區
+
+            if (page === 'schedule') {
+                hero.style.display = 'none';
+                searchArea.style.display = 'none';
+                videoGrid.style.display = 'none';
+                scheduleSection.classList.remove('hidden');
+                fetchScheduleData(); // 切換到賽程頁時觸發抓取
+            } else {
+                hero.style.display = (page === 'home') ? 'flex' : 'none';
+                searchArea.style.display = (page === 'home') ? 'block' : 'none';
+                videoGrid.style.display = 'grid';
+                scheduleSection.classList.add('hidden');
+                renderVideos();
+            }
+            window.scrollTo(0, 0);
         }
         function toggleFav(id, e) {
             e.stopPropagation();
@@ -418,6 +465,54 @@ body { background-color: var(--bg-color); color: var(--text-color); }
             themeIcon.innerText = '🌙';
             localStorage.setItem('theme', 'dark');
         }
+        async function fetchScheduleData() {
+            // ⚠️ 請替換成你 Schedule 工作表的 CSV 網址
+            const SCHEDULE_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRF7k8f6-PjUtj2u3YXT-yrdoDqF8ROoDl83h6b48okdhSs7M0RCWgQeaAhVXxlBZv3DqkgPgZMr9mC/pub?gid=732001402&single=true&output=csv';
+            
+            try {
+                const response = await fetch(SCHEDULE_CSV + '&t=' + new Date().getTime());
+                const csvText = await response.text();
+                const results = Papa.parse(csvText, { header: false });
+                const rows = results.data.slice(1); // 跳過標題列
+                
+                const listContainer = document.getElementById('scheduleList');
+                listContainer.innerHTML = "";
+
+                rows.forEach(row => {
+                    if (row.length < 3 || !row[0]) return;
+                    const [date, event, opponent, link] = row;
+                    
+                    // 檢查是否包含 T1 以套用特殊樣式
+                    const isT1 = opponent.toUpperCase().includes('T1');
+                    const cardClass = isT1 
+                        ? "border-l-4 border-red-500 bg-red-500/5 shadow-[0_0_15px_rgba(239,68,68,0.1)]" 
+                        : "border border-slate-700/50 bg-slate-800/20";
+
+                    const card = `
+                        <div class="video-card ${cardClass} p-5 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all">
+                            <div class="flex items-center space-x-6">
+                                <div class="text-blue-500 font-mono font-bold w-24 text-sm">${date}</div>
+                                <div>
+                                    <div class="text-[10px] text-slate-500 uppercase tracking-tighter">${event}</div>
+                                    <div class="text-lg font-bold ${isT1 ? 'text-white' : 'text-slate-300'}">${opponent}</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center">
+                                ${link && link.trim() !== "" 
+                                    ? `<a href="${link}" target="_blank" class="w-full md:w-auto text-center bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-bold transition">進入直播 ↗</a>`
+                                    : `<span class="text-slate-600 text-sm italic">暫無連結</span>`
+                                }
+                            </div>
+                        </div>
+                    `;
+                    listContainer.innerHTML += card;
+                });
+            } catch (err) {
+                console.error("載入失敗", err);
+                document.getElementById('scheduleList').innerHTML = "無法載入，請檢查 CSV 網址是否正確。";
+            }
+        }
+
         fetchData();
     </script>
 </body>
